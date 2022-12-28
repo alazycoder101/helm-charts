@@ -1,0 +1,74 @@
+apiVersion: kubegres.reactive-tech.io/v1
+kind: Kubegres
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Values.namespace }}
+spec:
+
+  replicas: {{ .Values.replicas }}
+  image: {{ template "kubegres.image" . }}
+  imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+  port: 5432
+
+  database:
+    size: {{ .Values.size }}
+    {{- if .Values.storageclass }}
+    storageClass: {{ .Values.storageclass }}
+    {{- end }}
+    volumeMount: /var/lib/postgres/data
+
+  {{- if .Values.resources }}
+  resources: {{- toYaml .Values.resources | nindent 12 }}
+  {{- end }}
+
+  {{- if .Values.customconfig.enabled }}
+  customConfig: {{ .Release.Name }}-config
+  {{- end }}
+
+  {{- if .Values.backup }}
+  backup:
+    schedule: {{ .values.backup.schedue }}
+    pvcName: {{ .values.backup.pvcName }}
+    volumeMount: /tmp/pg-backup
+  {{- end }}
+
+  {{- if .Values.scheduler }}
+  resources: {{- toYaml .Values.scheduler | nindent 12 }}
+  {{- end }}
+  scheduler:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                    - postgres-name
+              topologyKey: "kubernetes.io/hostname"
+    tolerations:
+      - key: group
+        operator: Equal
+        value: critical
+
+  {{- if .Values.scheduler }}
+  securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+  {{- end }}
+
+  env:
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Release.Name-secr }}-secret
+          key: superUserPassword
+
+    - name: POSTGRES_REPLICATION_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Release.Name-secr }}-secret
+          key: replicationUserPassword
+  {{- if .Values.volume }}
+  securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+  {{- end }}

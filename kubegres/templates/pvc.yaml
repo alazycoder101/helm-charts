@@ -1,0 +1,14 @@
+{{- if .Values.backup.enabled }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ template "kubegres.fullname" . }}
+  labels: {{- include "kubegres.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.backup.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.size | quote }}
+  {{ include "kubegres.storageClass" . }}
+{{- end }}

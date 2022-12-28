@@ -1,0 +1,84 @@
+image:
+  repository: postgres
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+namespace: postgres
+
+replicas: 1
+size: 100Mi
+
+#superUserPassword: YourPassword
+#replicationUserPassword: YourPassword
+securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+
+customConfig:
+  enabled: false
+  data:
+    # This is the standard Postgres config applying to Primary and Replica servers.
+    # You can edit this config as it suits your requirement.
+    #
+    # Be careful with the value you set for 'listen_addresses' because you could break the operator.
+    #
+    # You cannot set a value for the config "wal_level=replica" because it is passed as an argument to the PostgreSql container.
+    # This restriction is part of the design.
+    #
+    postgres.conf: |
+
+      # Replication configs (override in postgres.auto.conf)
+      listen_addresses = '*'
+      wal_level = logical
+      max_wal_senders = 10
+      max_replication_slots = 10
+      max_logical_replication_workers = 10
+      max_worker_processes = 10
+      max_connections = 200
+      shared_buffers = 128MB
+
+      # Logging
+      log_min_error_statement = INFO
+      log_min_duration_statement = 1000       # -1 is disabled, 0 logs all statements
+      log_checkpoints = on
+      log_lock_waits = on
+      log_temp_files = 0
+      log_autovacuum_min_duration = 0
+      log_error_verbosity = default
+      log_line_prefix = '%t [%p]: %d %u %a %h '
+
+      # stats
+      shared_preload_libraries = 'pg_stat_statements'
+      track_activity_query_size = 2048
+      pg_stat_statements.track = all
+
+backup:
+  enabled: false
+  accessMode: ReadWriteOnce
+  size: 1Gi
+
+probe:
+  livenessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - exec pg_isready -U postgres -h $POD_IP
+    failureThreshold: 10
+    initialDelaySeconds: 60
+    periodSeconds: 20
+    successThreshold: 1
+    timeoutSeconds: 15
+
+  readinessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - exec pg_isready -U postgres -h $POD_IP
+    failureThreshold: 3
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 3
